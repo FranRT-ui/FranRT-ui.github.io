@@ -1,0 +1,21 @@
+{
+  "name": "App de Exámenes",
+  "short_name": "Exámenes",
+  "description": "Aplicación de exámenes tipo test personalizable",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#f5f7fa",
+  "theme_color": "#4a6da7",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
