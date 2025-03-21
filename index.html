@@ -4,12 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Aplicación de Exámenes</title>
-    <link rel="manifest" href="manifest.json">
     <style>
         :root {
             --primary-color: #4a6da7;
             --secondary-color: #304878;
             --accent-color: #ff6b6b;
+            --success-color: #4caf50;
+            --warning-color: #ff9800;
+            --error-color: #f44336;
             --background-color: #f5f7fa;
             --text-color: #333;
             --shadow: 0 2px 5px rgba(0,0,0,0.1);
@@ -228,6 +230,80 @@
             top: 10px;
         }
         
+        /* Estilos para la pantalla de revisión */
+        .review-question {
+            margin-bottom: 30px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 20px;
+        }
+        
+        .review-question-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        
+        .review-question-number {
+            font-weight: bold;
+            color: var(--secondary-color);
+        }
+        
+        .review-question-theme {
+            color: var(--primary-color);
+            font-style: italic;
+        }
+        
+        .review-option {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 8px;
+            border: 1px solid #ddd;
+            position: relative;
+        }
+        
+        .review-option.correct {
+            background-color: rgba(76, 175, 80, 0.1);
+            border-color: var(--success-color);
+        }
+        
+        .review-option.incorrect {
+            background-color: rgba(244, 67, 54, 0.1);
+            border-color: var(--error-color);
+        }
+        
+        .review-option.user-selected {
+            font-weight: bold;
+        }
+        
+        .review-option .status-icon {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .status-correct {
+            color: var(--success-color);
+        }
+        
+        .status-incorrect {
+            color: var(--error-color);
+        }
+        
+        .review-navigation {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+        }
+        
+        .review-summary {
+            text-align: center;
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+        }
+        
         @media (max-width: 600px) {
             body {
                 padding: 10px;
@@ -313,6 +389,27 @@
         </div>
     </div>
     
+    <!-- Pantalla de revisión de respuestas -->
+    <div id="reviewScreen" class="hidden">
+        <div class="container">
+            <h2>Revisión de Respuestas</h2>
+            
+            <div class="review-summary">
+                <div id="review-score">Puntuación: 0/10</div>
+                <div>Aciertos: <span id="review-correct">0</span> | Errores: <span id="review-wrong">0</span> | Sin responder: <span id="review-unanswered">0</span></div>
+            </div>
+            
+            <div id="review-questions-container">
+                <!-- Aquí se cargarán las preguntas para revisión -->
+            </div>
+            
+            <div class="controls">
+                <button id="back-to-results">Volver a Resultados</button>
+                <button id="restart-from-review">Volver al Inicio</button>
+            </div>
+        </div>
+    </div>
+    
     <!-- Pantalla de gestión de banco de preguntas -->
     <div id="questionBankScreen" class="hidden">
         <div class="container">
@@ -367,11 +464,13 @@
         let examTime = 0;
         let timer;
         let secondsLeft = 0;
+        let examResults = null;
         
         // Obtener elementos del DOM
         const startScreen = document.getElementById('startScreen');
         const examScreen = document.getElementById('examScreen');
         const resultsScreen = document.getElementById('resultsScreen');
+        const reviewScreen = document.getElementById('reviewScreen');
         const questionBankScreen = document.getElementById('questionBankScreen');
         
         const numQuestionsInput = document.getElementById('num-questions');
@@ -394,6 +493,14 @@
         const unanswered = document.getElementById('unanswered');
         const restartButton = document.getElementById('restart-button');
         const reviewButton = document.getElementById('review-button');
+        
+        const reviewQuestionsContainer = document.getElementById('review-questions-container');
+        const backToResultsButton = document.getElementById('back-to-results');
+        const restartFromReviewButton = document.getElementById('restart-from-review');
+        const reviewScoreElement = document.getElementById('review-score');
+        const reviewCorrectElement = document.getElementById('review-correct');
+        const reviewWrongElement = document.getElementById('review-wrong');
+        const reviewUnansweredElement = document.getElementById('review-unanswered');
         
         const newThemeInput = document.getElementById('new-theme');
         const newQuestionInput = document.getElementById('new-question');
@@ -663,12 +770,12 @@
         function finishExam() {
             clearInterval(timer);
             
-            const results = calculateScore();
+            examResults = calculateScore();
             
-            finalScore.textContent = `Puntuación: ${results.score}/10`;
-            correctAnswers.textContent = results.correct;
-            wrongAnswers.textContent = results.wrong;
-            unanswered.textContent = results.notAnswered;
+            finalScore.textContent = `Puntuación: ${examResults.score}/10`;
+            correctAnswers.textContent = examResults.correct;
+            wrongAnswers.textContent = examResults.wrong;
+            unanswered.textContent = examResults.notAnswered;
             
             examScreen.classList.add('hidden');
             resultsScreen.classList.remove('hidden');
@@ -731,6 +838,113 @@
                 questionItem.appendChild(questionContent);
                 questionItem.appendChild(deleteButton);
                 questionList.appendChild(questionItem);
+            });
+        }
+        
+        // Mostrar la revisión de preguntas
+        function showReviewQuestions() {
+            // Actualizar resumen de resultados
+            reviewScoreElement.textContent = `Puntuación: ${examResults.score}/10`;
+            reviewCorrectElement.textContent = examResults.correct;
+            reviewWrongElement.textContent = examResults.wrong;
+            reviewUnansweredElement.textContent = examResults.notAnswered;
+            
+            // Limpiar contenedor de preguntas
+            reviewQuestionsContainer.innerHTML = '';
+            
+            // Añadir cada pregunta con su revisión
+            examQuestions.forEach((question, index) => {
+                const reviewQuestionDiv = document.createElement('div');
+                reviewQuestionDiv.className = 'review-question';
+                
+                // Encabezado de la pregunta
+                const headerDiv = document.createElement('div');
+                headerDiv.className = 'review-question-header';
+                
+                const questionNumberDiv = document.createElement('div');
+                questionNumberDiv.className = 'review-question-number';
+                questionNumberDiv.textContent = `Pregunta ${index + 1}`;
+                
+                const themeDiv = document.createElement('div');
+                themeDiv.className = 'review-question-theme';
+                themeDiv.textContent = question.theme;
+                
+                headerDiv.appendChild(questionNumberDiv);
+                headerDiv.appendChild(themeDiv);
+                
+                // Texto de la pregunta
+                const questionDiv = document.createElement('div');
+                questionDiv.textContent = question.question;
+                questionDiv.style.marginBottom = '15px';
+                questionDiv.style.fontWeight = 'bold';
+                
+                reviewQuestionDiv.appendChild(headerDiv);
+                reviewQuestionDiv.appendChild(questionDiv);
+                
+                // Opciones
+                const optionsDiv = document.createElement('div');
+                
+                question.options.forEach((option, optionIndex) => {
+                    const optionDiv = document.createElement('div');
+                    optionDiv.className = 'review-option';
+                    
+                    // Determinar si esta opción fue seleccionada por el usuario
+                    const userSelected = userAnswers[index] === optionIndex;
+                    
+                    // Determinar si esta es la opción correcta
+                    const isCorrect = question.correctOption === optionIndex;
+                    
+                    // Añadir clases según el estado
+                    if (userSelected) {
+                        optionDiv.classList.add('user-selected');
+                    }
+                    
+                    if (isCorrect) {
+                        optionDiv.classList.add('correct');
+                    } else if (userSelected) {
+                        optionDiv.classList.add('incorrect');
+                    }
+                    
+                    // Añadir el texto de la opción
+                    optionDiv.textContent = option;
+                    
+                    // Añadir icono de estado
+                    const statusSpan = document.createElement('span');
+                    statusSpan.className = 'status-icon';
+                    
+                    if (isCorrect) {
+                        statusSpan.textContent = '✓';
+                        statusSpan.classList.add('status-correct');
+                    } else if (userSelected) {
+                        statusSpan.textContent = '✗';
+                        statusSpan.classList.add('status-incorrect');
+                    }
+                    
+                    optionDiv.appendChild(statusSpan);
+                    optionsDiv.appendChild(optionDiv);
+                });
+                
+                reviewQuestionDiv.appendChild(optionsDiv);
+                
+                // Mensaje de evaluación
+                const evaluationDiv = document.createElement('div');
+                evaluationDiv.style.marginTop = '10px';
+                
+                if (userAnswers[index] === null) {
+                    evaluationDiv.textContent = 'No respondiste esta pregunta.';
+                    evaluationDiv.style.color = '#888';
+                } else if (userAnswers[index] === question.correctOption) {
+                    evaluationDiv.textContent = '¡Correcto!';
+                    evaluationDiv.style.color = 'var(--success-color)';
+                } else {
+                    evaluationDiv.textContent = `Incorrecto. La respuesta correcta es: ${question.options[question.correctOption]}`;
+                    evaluationDiv.style.color = 'var(--error-color)';
+                }
+                
+                reviewQuestionDiv.appendChild(evaluationDiv);
+                
+                // Añadir al contenedor principal
+                reviewQuestionsContainer.appendChild(reviewQuestionDiv);
             });
         }
         
@@ -800,7 +1014,7 @@
                 }
             });
             
-            // Botón volver al inicio
+            // Botón volver al inicio desde resultados
             restartButton.addEventListener('click', () => {
                 resultsScreen.classList.add('hidden');
                 startScreen.classList.remove('hidden');
@@ -808,8 +1022,21 @@
             
             // Botón revisar respuestas
             reviewButton.addEventListener('click', () => {
-                // Implementación pendiente (opcional)
-                alert('Funcionalidad en desarrollo');
+                resultsScreen.classList.add('hidden');
+                reviewScreen.classList.remove('hidden');
+                showReviewQuestions();
+            });
+            
+            // Botón volver a resultados desde revisión
+            backToResultsButton.addEventListener('click', () => {
+                reviewScreen.classList.add('hidden');
+                resultsScreen.classList.remove('hidden');
+            });
+            
+            // Botón volver al inicio desde revisión
+            restartFromReviewButton.addEventListener('click', () => {
+                reviewScreen.classList.add('hidden');
+                startScreen.classList.remove('hidden');
             });
             
             // Añadir nueva pregunta
@@ -856,17 +1083,6 @@
                 startScreen.classList.remove('hidden');
             });
         });
-        
-        // Registro del Service Worker para PWA
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js').then(registration => {
-                    console.log('Service Worker registrado');
-                }).catch(error => {
-                    console.log('Error al registrar el Service Worker:', error);
-                });
-            });
-        }
     </script>
 </body>
 </html>
